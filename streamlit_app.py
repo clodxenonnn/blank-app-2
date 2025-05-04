@@ -1,3 +1,4 @@
+import streamlit as st
 import os
 import gdown
 import streamlit as st
@@ -6,7 +7,7 @@ from ultralytics import YOLO
 import cv2
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
-
+st.set_page_config(layout="wide")
 # Google Drive file ID for the model
 file_id = "1QJNq5JCLfoex6NcpoW-nTtTaBrwxbbpM"
 output = "best.pt"
