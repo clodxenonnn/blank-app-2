@@ -28,28 +28,15 @@ st.subheader("🎥 Live Webcam Detection (WebRTC)")
 RTC_CONFIGURATION = RTCConfiguration(
     {
         "iceServers": [
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun2.l.google.com:19302"]},
-            {"urls": ["stun:stun3.l.google.com:19302"]},
-            {"urls": ["stun:stun4.l.google.com:19302"]},
-
-            # Some public TURN servers (may have usage limits or require credentials)
+            {"urls": ["stun:stun.l.google.com:19302"]},
             {
-                "urls": ["turn:turn.anyfirewall.com:443?transport=tcp"],
-                "username": "webrtc",
-                "credential": "webrtc",
-            },
-
-            # Another public TURN server (may not be always reliable)
-            {
-                "urls": ["turn:turn.bistri.com:80"],
-                "username": "homeo",
-                "credential": "homeo",
+                "urls": ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
             },
         ]
     }
 )
-
 
 class YOLOVideoProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
