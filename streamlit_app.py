@@ -23,6 +23,14 @@ model = YOLO(model_path)
 # Title for the app
 st.title("🐶 Dog Detection with YOLO")
 
+
+# Initialize session state variables
+if "is_detecting" not in st.session_state:
+    st.session_state.is_detecting = False
+if "is_webcam_active" not in st.session_state:
+    st.session_state.is_webcam_active = False
+
+
 # SECTION 1: Real-time snapshot capture using st.camera_input()
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
 
