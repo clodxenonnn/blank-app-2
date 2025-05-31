@@ -30,7 +30,84 @@ if "is_detecting" not in st.session_state:
 if "is_webcam_active" not in st.session_state:
     st.session_state.is_webcam_active = False
 
+# Function for live object detection using webcam
+def live_streaming(conf_threshold, selected_classes):
+    stframe = st.empty()
 
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        st.error(
+            "Error: Could not access the webcam. Please make sure your webcam is working."
+        )
+        return
+
+    try:
+        while st.session_state.get("is_detecting", False) and st.session_state.get(
+            "is_webcam_active", False
+        ):
+            ret, frame = cap.read()
+
+            if not ret:
+                st.warning("Warning: Failed to read frame from the webcam. Retrying...")
+                continue
+
+            try:
+                results = model.predict(source=frame, conf=conf_threshold)
+                detections = results[0]
+
+                # Extract bounding boxes, confidence scores, and class IDs
+                boxes = (
+                    detections.boxes.xyxy.cpu().numpy() if len(detections) > 0 else []
+                )
+                confs = (
+                    detections.boxes.conf.cpu().numpy() if len(detections) > 0 else []
+                )
+                class_ids = (
+                    detections.boxes.cls.cpu().numpy().astype(int)
+                    if len(detections) > 0
+                    else []
+                )
+
+                # Filter based on selected classes
+                if selected_classes:
+                    filtered = [
+                        (box, conf, class_id)
+                        for box, conf, class_id in zip(boxes, confs, class_ids)
+                        if yolo_classes[class_id] in selected_classes
+                    ]
+                    if filtered:
+                        boxes, confs, class_ids = zip(*filtered)
+                    else:
+                        boxes, confs, class_ids = [], [], []
+
+                # Draw bounding boxes and labels on the frame
+                for i, box in enumerate(boxes):
+                    x1, y1, x2, y2 = map(int, box)
+                    label = f"{yolo_classes[class_ids[i]]}: {confs[i]:.2f}"
+                    cv2.rectangle(
+                        frame, (x1, y1), (x2, y2), color=(0, 255, 0), thickness=2
+                    )
+                    cv2.putText(
+                        frame,
+                        label,
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (255, 255, 255),
+                        2,
+                    )
+
+                # Display the frame in Streamlit
+                stframe.image(frame, channels="BGR")
+
+            except Exception as e:
+                st.error(f"Error during model prediction: {str(e)}")
+
+    finally:
+        # Ensure resources are properly released
+        cap.release()
+        cv2.destroyAllWindows()
+        
 # SECTION 1: Real-time snapshot capture using st.camera_input()
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
 
