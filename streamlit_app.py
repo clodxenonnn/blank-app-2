@@ -107,6 +107,34 @@ def live_streaming(conf_threshold, selected_classes):
         # Ensure resources are properly released
         cap.release()
         cv2.destroyAllWindows()
+# SECTION 3: Webcam Live Stream Detection
+st.subheader("🎥 Live Webcam Detection")
+
+# Toggle webcam activation
+webcam_checkbox = st.checkbox("Activate Webcam for Live Detection")
+
+if webcam_checkbox:
+    st.session_state.is_webcam_active = True
+    st.session_state.is_detecting = True
+
+    # Confidence threshold slider
+    conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
+
+    # Get class names from the model
+    yolo_classes = model.names
+
+    # Class selection multiselect
+    selected_classes = st.multiselect(
+        "Select classes to detect (leave empty to detect all):",
+        options=list(yolo_classes.values()),
+    )
+
+    # Start the live webcam detection
+    live_streaming(conf_threshold, selected_classes)
+
+else:
+    st.session_state.is_webcam_active = False
+    st.session_state.is_detecting = False
         
 # SECTION 1: Real-time snapshot capture using st.camera_input()
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
