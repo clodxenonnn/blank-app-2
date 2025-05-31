@@ -49,7 +49,7 @@ if "is_webcam_active" not in st.session_state:
 def live_streaming(conf_threshold, selected_classes):
     stframe = st.empty()
 
-    cap = cv2.VideoCapture(1)  # or 2, 3...
+    cap = cv2.VideoCapture(0) 
 
     if not cap.isOpened():
         st.error(
