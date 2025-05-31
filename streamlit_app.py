@@ -45,6 +45,7 @@ class YOLOVideoProcessor(VideoProcessorBase):
         annotated_frame = results.plot()
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
+# Single call to webrtc_streamer — user must click 'Start' button manually
 webrtc_ctx = webrtc_streamer(
     key="live-dog-detection",
     video_processor_factory=YOLOVideoProcessor,
@@ -56,8 +57,7 @@ webrtc_ctx = webrtc_streamer(
 if webrtc_ctx.state.playing:
     st.markdown("📡 **Streaming live video and detecting objects in real-time...**")
 else:
-    st.info("📷 Please click the 'Start' button above to activate your webcam.")
-
+    st.info("📷 Please click the **Start** button above to activate your webcam.")
 
 # --- SECTION 1: Snapshot Detection (st.camera_input) ---
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
