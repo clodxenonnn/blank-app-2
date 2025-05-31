@@ -23,26 +23,7 @@ st.set_page_config(layout="wide")
 st.title("🐶 Dog Detection with YOLO")
 
 # --- SECTION 3: Live Webcam Detection (WebRTC) ---
-
 st.subheader("🎥 Live Webcam Detection (WebRTC)")
-
-
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
-import av
-
-class YOLOVideoProcessor(VideoProcessorBase):
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        img = frame.to_ndarray(format="bgr24")
-        # You can add detection or processing here
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-webrtc_streamer(
-    key="example",
-    video_processor_factory=YOLOVideoProcessor,
-    media_stream_constraints={"video": True, "audio": False},
-    async_processing=True,
-)
-
 
 RTC_CONFIGURATION = RTCConfiguration(
     {
@@ -57,7 +38,12 @@ RTC_CONFIGURATION = RTCConfiguration(
     }
 )
 
-
+class YOLOVideoProcessor(VideoProcessorBase):
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        img = frame.to_ndarray(format="bgr24")
+        results = model(img)[0]
+        annotated_frame = results.plot()
+        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
 webrtc_ctx = webrtc_streamer(
     key="live-dog-detection",
@@ -69,9 +55,8 @@ webrtc_ctx = webrtc_streamer(
 
 if webrtc_ctx.video_processor:
     st.markdown("📡 **Streaming live video and detecting objects in real-time...**")
-    st.markdown("👆 Adjust the confidence slider or filter by specific classes.")
 else:
-    st.warning("📷 Click the checkbox above to activate your webcam.")
+    st.warning("📷 Webcam stream is not active.")
 
 # --- SECTION 1: Snapshot Detection (st.camera_input) ---
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
