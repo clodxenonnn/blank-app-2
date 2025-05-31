@@ -123,7 +123,7 @@ def live_streaming(conf_threshold, selected_classes):
         # Ensure resources are properly released
         cap.release()
         cv2.destroyAllWindows()
-# SECTION 3: Webcam Live Stream Detection
+# SECTION 3: Webcam Live Stream Detection with streamlit-webrtc
 st.subheader("🎥 Live Webcam Detection (WebRTC)")
 
 # Confidence threshold slider
@@ -138,36 +138,46 @@ selected_classes = st.multiselect(
     options=list(yolo_classes.values()),
 )
 
-# Define the WebRTC video processor
+# VideoProcessor with filtering logic
 class YOLOVideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = model
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
+
+        # Run YOLO prediction
         results = self.model(img, conf=conf_threshold)[0]
 
+        # Filter results by selected classes
         if selected_classes:
-            # filter detections
-            filtered_boxes = []
-            for i in range(len(results.boxes)):
-                class_id = int(results.boxes.cls[i])
-                class_name = yolo_classes[class_id]
-                if class_name not in selected_classes:
-                    continue
-                filtered_boxes.append(i)
-            results.boxes = results.boxes[filtered_boxes]
+            mask = [
+                yolo_classes[int(cls_id)] in selected_classes
+                for cls_id in results.boxes.cls.cpu().numpy()
+            ]
+            if any(mask):
+                results.boxes = results.boxes[np.array(mask)]
 
-        annotated = results.plot()
-        return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+        # Annotate frame
+        annotated_frame = results.plot()
+
+        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
 # Start WebRTC streamer
-webrtc_streamer(
-    key="dog-detection",
+webrtc_ctx = webrtc_streamer(
+    key="live-dog-detection",
     video_processor_factory=YOLOVideoProcessor,
     media_stream_constraints={"video": True, "audio": False},
     async_processing=True,
 )
+
+# Show detection note
+if webrtc_ctx.video_processor:
+    st.markdown("📡 **Streaming live video and detecting objects in real-time...**")
+    st.markdown("👆 Adjust the confidence slider or filter by specific classes.")
+else:
+    st.warning("📷 Click the checkbox above to activate your webcam.")
+
 
 
         
