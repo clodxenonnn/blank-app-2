@@ -8,6 +8,7 @@ import cv2
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import av
 
+
 class VideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = model  # use loaded YOLO model
@@ -163,13 +164,29 @@ class YOLOVideoProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
-# Start WebRTC streamer
+
+
+RTC_CONFIGURATION = RTCConfiguration(
+    {
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {
+                "urls": ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
+                "username": "openrelayproject",
+                "credential": "openrelayproject"
+            }
+        ]
+    }
+)
+
 webrtc_ctx = webrtc_streamer(
     key="live-dog-detection",
     video_processor_factory=YOLOVideoProcessor,
+    rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"video": True, "audio": False},
     async_processing=True,
 )
+
 
 # Show detection note
 if webrtc_ctx.video_processor:
