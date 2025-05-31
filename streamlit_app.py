@@ -73,11 +73,13 @@ RTC_CONFIGURATION = RTCConfiguration(
             {
                 "urls": ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
                 "username": "openrelayproject",
-                "credential": "openrelayproject"
+                "credential": "openrelayproject",
             },
         ]
     }
 )
+
+
 
 webrtc_ctx = webrtc_streamer(
     key="live-dog-detection",
