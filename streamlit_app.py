@@ -4,134 +4,30 @@ import gdown
 from PIL import Image
 from ultralytics import YOLO
 import numpy as np
-import cv2
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import av
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
-
-class VideoProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.model = model  # use loaded YOLO model
-
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        img = frame.to_ndarray(format="bgr24")
-
-        results = self.model(img)[0]
-        annotated_frame = results.plot()
-
-        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
-
-# Set page config to use wide layout
-st.set_page_config(layout="wide")
-
-# Google Drive file ID for YOLO model
+# Download YOLO model if not present
 file_id = "1QJNq5JCLfoex6NcpoW-nTtTaBrwxbbpM"
 model_path = "best.pt"
 
-# Download the model if it doesn't exist
 if not os.path.exists(model_path):
-    with st.spinner("Downloading model..."):
+    with st.spinner("Downloading YOLO model..."):
         gdown.download(f"https://drive.google.com/uc?id={file_id}", model_path, quiet=False)
 
 # Load YOLO model
 model = YOLO(model_path)
+yolo_classes = model.names  # Dictionary of class_id -> class_name
 
-# Title for the app
+st.set_page_config(layout="wide")
 st.title("🐶 Dog Detection with YOLO")
 
+# --- SECTION 3: Live Webcam Detection (WebRTC) ---
 
-# Initialize session state variables
-if "is_detecting" not in st.session_state:
-    st.session_state.is_detecting = False
-if "is_webcam_active" not in st.session_state:
-    st.session_state.is_webcam_active = False
-
-# Function for live object detection using webcam
-def live_streaming(conf_threshold, selected_classes):
-    stframe = st.empty()
-
-    cap = cv2.VideoCapture(0) 
-
-    if not cap.isOpened():
-        st.error(
-            "Error: Could not access the webcam. Please make sure your webcam is working."
-        )
-        return
-
-    try:
-        while st.session_state.get("is_detecting", False) and st.session_state.get(
-            "is_webcam_active", False
-        ):
-            ret, frame = cap.read()
-
-            if not ret:
-                st.warning("Warning: Failed to read frame from the webcam. Retrying...")
-                continue
-
-            try:
-                results = model.predict(source=frame, conf=conf_threshold)
-                detections = results[0]
-
-                # Extract bounding boxes, confidence scores, and class IDs
-                boxes = (
-                    detections.boxes.xyxy.cpu().numpy() if len(detections) > 0 else []
-                )
-                confs = (
-                    detections.boxes.conf.cpu().numpy() if len(detections) > 0 else []
-                )
-                class_ids = (
-                    detections.boxes.cls.cpu().numpy().astype(int)
-                    if len(detections) > 0
-                    else []
-                )
-
-                # Filter based on selected classes
-                if selected_classes:
-                    filtered = [
-                        (box, conf, class_id)
-                        for box, conf, class_id in zip(boxes, confs, class_ids)
-                        if yolo_classes[class_id] in selected_classes
-                    ]
-                    if filtered:
-                        boxes, confs, class_ids = zip(*filtered)
-                    else:
-                        boxes, confs, class_ids = [], [], []
-
-                # Draw bounding boxes and labels on the frame
-                for i, box in enumerate(boxes):
-                    x1, y1, x2, y2 = map(int, box)
-                    label = f"{yolo_classes[class_ids[i]]}: {confs[i]:.2f}"
-                    cv2.rectangle(
-                        frame, (x1, y1), (x2, y2), color=(0, 255, 0), thickness=2
-                    )
-                    cv2.putText(
-                        frame,
-                        label,
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (255, 255, 255),
-                        2,
-                    )
-
-                # Display the frame in Streamlit
-                stframe.image(frame, channels="BGR")
-
-            except Exception as e:
-                st.error(f"Error during model prediction: {str(e)}")
-
-    finally:
-        # Ensure resources are properly released
-        cap.release()
-        cv2.destroyAllWindows()
-# SECTION 3: Webcam Live Stream Detection with streamlit-webrtc
 st.subheader("🎥 Live Webcam Detection (WebRTC)")
 
 # Confidence threshold slider
 conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
-
-# Get class names from the model
-yolo_classes = model.names
 
 # Class selection multiselect
 selected_classes = st.multiselect(
@@ -139,7 +35,6 @@ selected_classes = st.multiselect(
     options=list(yolo_classes.values()),
 )
 
-# VideoProcessor with filtering logic
 class YOLOVideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = model
@@ -147,24 +42,37 @@ class YOLOVideoProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Run YOLO prediction
+        # Run prediction
         results = self.model(img, conf=conf_threshold)[0]
 
-        # Filter results by selected classes
+        # Filter boxes by selected classes if any selected
         if selected_classes:
-            mask = [
-                yolo_classes[int(cls_id)] in selected_classes
-                for cls_id in results.boxes.cls.cpu().numpy()
-            ]
-            if any(mask):
-                results.boxes = results.boxes[np.array(mask)]
+            cls_ids = results.boxes.cls.cpu().numpy().astype(int)
+            mask = np.array([yolo_classes[cls_id] in selected_classes for cls_id in cls_ids])
+            if mask.any():
+                # Filter boxes, scores, and classes
+                filtered_boxes = results.boxes.xyxy.cpu().numpy()[mask]
+                filtered_scores = results.boxes.conf.cpu().numpy()[mask]
+                filtered_cls = cls_ids[mask]
 
-        # Annotate frame
+                # Create a new Boxes object with filtered results
+                from ultralytics.yolo.utils.ops import scale_boxes
+                from ultralytics.yolo.engine.results import Results
+                from ultralytics.yolo.utils import Ops
+                import torch
+
+                # Rebuild boxes object
+                results.boxes.xyxy = torch.tensor(filtered_boxes)
+                results.boxes.conf = torch.tensor(filtered_scores)
+                results.boxes.cls = torch.tensor(filtered_cls)
+            else:
+                # No boxes to display
+                results.boxes.xyxy = torch.empty((0,4))
+                results.boxes.conf = torch.empty((0,))
+                results.boxes.cls = torch.empty((0,))
+
         annotated_frame = results.plot()
-
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
-
-
 
 RTC_CONFIGURATION = RTCConfiguration(
     {
@@ -174,7 +82,7 @@ RTC_CONFIGURATION = RTCConfiguration(
                 "urls": ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
                 "username": "openrelayproject",
                 "credential": "openrelayproject"
-            }
+            },
         ]
     }
 )
@@ -187,51 +95,38 @@ webrtc_ctx = webrtc_streamer(
     async_processing=True,
 )
 
-
-# Show detection note
 if webrtc_ctx.video_processor:
     st.markdown("📡 **Streaming live video and detecting objects in real-time...**")
     st.markdown("👆 Adjust the confidence slider or filter by specific classes.")
 else:
     st.warning("📷 Click the checkbox above to activate your webcam.")
 
-
-
-        
-# SECTION 1: Real-time snapshot capture using st.camera_input()
+# --- SECTION 1: Snapshot Detection (st.camera_input) ---
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
 
-# Camera input (replaces streamlit-webrtc)
 img_file_buffer = st.camera_input("Take a picture using your webcam")
 
 if img_file_buffer is not None:
-    # Read and display the captured image
     image = Image.open(img_file_buffer)
     st.image(image, caption="Captured Image", use_column_width=True)
 
-    # Convert to NumPy array
     img_np = np.array(image.convert("RGB"))
 
-    # Run YOLO detection
     results = model(img_np)
 
-    # Display result
     st.image(results[0].plot(), caption="Detection Result", use_column_width=True)
 
-# SECTION 2: Offline image upload
+# --- SECTION 2: Upload Image Detection ---
 st.subheader("🖼️ Upload an Image for Detection")
+
 uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Open and display the uploaded image
     img = Image.open(uploaded_file)
     st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    # Convert to NumPy array
     img_np = np.array(img.convert("RGB"))
 
-    # Run YOLO detection
     results = model(img_np)
 
-    # Display result
     st.image(results[0].plot(), caption="Detected Image", use_column_width=True)
