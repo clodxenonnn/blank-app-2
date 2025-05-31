@@ -27,44 +27,22 @@ st.title("🐶 Dog Detection with YOLO")
 st.subheader("🎥 Live Webcam Detection (WebRTC)")
 
 
-class YOLOVideoProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.model = model
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
+import av
 
+class YOLOVideoProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
+        # You can add detection or processing here
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # Run prediction
-        results = self.model(img, conf=conf_threshold)[0]
+webrtc_streamer(
+    key="example",
+    video_processor_factory=YOLOVideoProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
+)
 
-        # Filter boxes by selected classes if any selected
-        if selected_classes:
-            cls_ids = results.boxes.cls.cpu().numpy().astype(int)
-            mask = np.array([yolo_classes[cls_id] in selected_classes for cls_id in cls_ids])
-            if mask.any():
-                # Filter boxes, scores, and classes
-                filtered_boxes = results.boxes.xyxy.cpu().numpy()[mask]
-                filtered_scores = results.boxes.conf.cpu().numpy()[mask]
-                filtered_cls = cls_ids[mask]
-
-                # Create a new Boxes object with filtered results
-                from ultralytics.yolo.utils.ops import scale_boxes
-                from ultralytics.yolo.engine.results import Results
-                from ultralytics.yolo.utils import Ops
-                import torch
-
-                # Rebuild boxes object
-                results.boxes.xyxy = torch.tensor(filtered_boxes)
-                results.boxes.conf = torch.tensor(filtered_scores)
-                results.boxes.cls = torch.tensor(filtered_cls)
-            else:
-                # No boxes to display
-                results.boxes.xyxy = torch.empty((0,4))
-                results.boxes.conf = torch.empty((0,))
-                results.boxes.cls = torch.empty((0,))
-
-        annotated_frame = results.plot()
-        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
 RTC_CONFIGURATION = RTCConfiguration(
     {
