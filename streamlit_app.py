@@ -26,14 +26,6 @@ st.title("🐶 Dog Detection with YOLO")
 
 st.subheader("🎥 Live Webcam Detection (WebRTC)")
 
-# Confidence threshold slider
-conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
-
-# Class selection multiselect
-selected_classes = st.multiselect(
-    "Select classes to detect (leave empty to detect all):",
-    options=list(yolo_classes.values()),
-)
 
 class YOLOVideoProcessor(VideoProcessorBase):
     def __init__(self):
