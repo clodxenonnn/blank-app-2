@@ -53,10 +53,11 @@ webrtc_ctx = webrtc_streamer(
     async_processing=True,
 )
 
-if webrtc_ctx.video_processor:
+if webrtc_ctx.state.playing:
     st.markdown("📡 **Streaming live video and detecting objects in real-time...**")
 else:
-    st.warning("📷 Webcam stream is not active.")
+    st.info("📷 Please click the 'Start' button above to activate your webcam.")
+
 
 # --- SECTION 1: Snapshot Detection (st.camera_input) ---
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
