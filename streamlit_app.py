@@ -5,6 +5,7 @@ from PIL import Image
 from ultralytics import YOLO
 import numpy as np
 import cv2
+
 # Set page config to use wide layout
 st.set_page_config(layout="wide")
 
