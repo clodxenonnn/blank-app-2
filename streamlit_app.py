@@ -8,6 +8,17 @@ import cv2
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import av
 
+class VideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = model  # use loaded YOLO model
+
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        img = frame.to_ndarray(format="bgr24")
+
+        results = self.model(img)[0]
+        annotated_frame = results.plot()
+
+        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
 # Set page config to use wide layout
 st.set_page_config(layout="wide")
