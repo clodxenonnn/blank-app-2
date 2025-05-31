@@ -151,6 +151,22 @@ if webcam_checkbox:
 else:
     st.session_state.is_webcam_active = False
     st.session_state.is_detecting = False
+    
+st.subheader("🎥 Live Dog Detection (WebRTC)")
+
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
+
+webrtc_ctx = webrtc_streamer(
+    key="dog-detection",
+    mode="receive",
+    rtc_configuration=RTC_CONFIGURATION,
+    media_stream_constraints={"video": True, "audio": False},
+    video_processor_factory=VideoProcessor,
+    async_processing=True,
+)
+
         
 # SECTION 1: Real-time snapshot capture using st.camera_input()
 st.subheader("📸 Detect Dogs from Your Camera (Snapshot)")
