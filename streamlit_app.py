@@ -124,34 +124,51 @@ def live_streaming(conf_threshold, selected_classes):
         cap.release()
         cv2.destroyAllWindows()
 # SECTION 3: Webcam Live Stream Detection
-st.subheader("🎥 Live Webcam Detection")
+st.subheader("🎥 Live Webcam Detection (WebRTC)")
 
-# Toggle webcam activation
-webcam_checkbox = st.checkbox("Activate Webcam for Live Detection")
+# Confidence threshold slider
+conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
 
-if webcam_checkbox:
-    st.session_state.is_webcam_active = True
-    st.session_state.is_detecting = True
+# Get class names from the model
+yolo_classes = model.names
 
-    # Confidence threshold slider
-    conf_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
+# Class selection multiselect
+selected_classes = st.multiselect(
+    "Select classes to detect (leave empty to detect all):",
+    options=list(yolo_classes.values()),
+)
 
-    # Get class names from the model
-    yolo_classes = model.names
+# Define the WebRTC video processor
+class YOLOVideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = model
 
-    # Class selection multiselect
-    selected_classes = st.multiselect(
-        "Select classes to detect (leave empty to detect all):",
-        options=list(yolo_classes.values()),
-    )
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        img = frame.to_ndarray(format="bgr24")
+        results = self.model(img, conf=conf_threshold)[0]
 
-    # Start the live webcam detection
-    live_streaming(conf_threshold, selected_classes)
+        if selected_classes:
+            # filter detections
+            filtered_boxes = []
+            for i in range(len(results.boxes)):
+                class_id = int(results.boxes.cls[i])
+                class_name = yolo_classes[class_id]
+                if class_name not in selected_classes:
+                    continue
+                filtered_boxes.append(i)
+            results.boxes = results.boxes[filtered_boxes]
 
-else:
-    st.session_state.is_webcam_active = False
-    st.session_state.is_detecting = False
-    
+        annotated = results.plot()
+        return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+
+# Start WebRTC streamer
+webrtc_streamer(
+    key="dog-detection",
+    video_processor_factory=YOLOVideoProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
+)
+
 
         
 # SECTION 1: Real-time snapshot capture using st.camera_input()
